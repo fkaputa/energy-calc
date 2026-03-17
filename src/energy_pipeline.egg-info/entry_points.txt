@@ -1,0 +1,5 @@
+[console_scripts]
+run-ea-sim = energy_pipeline.scripts.run_ea_sim:main
+run-pipeline = energy_pipeline.scripts.run_pipeline:main
+run-pypsa = energy_pipeline.scripts.run_pypsa:main
+visualize = energy_pipeline.scripts.visualize:main

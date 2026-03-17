@@ -1,0 +1,343 @@
+{% extends "projects_ui/base.html" %}
+{% load static %}
+
+{% block head_extra %}
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.css">
+<script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
+<script src="{% static 'projects_ui/chart_window.js' %}"></script>
+<style>
+.viz-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.88rem; }
+.viz-table th, .viz-table td { padding: 0.4rem 0.6rem; text-align: left; border: 1px solid #2a3550; }
+.viz-table th { background: #1a2240; color: #a8b8e8; font-weight: 600; }
+.viz-table tr:nth-child(even) td { background: rgba(18,26,51,0.6); }
+.viz-table tr:hover td { background: rgba(40,60,120,0.25); }
+.viz-section { margin-bottom: 1.8rem; }
+.viz-section h3 { margin: 0 0 0.6rem 0; font-size: 1.1rem; color: #c8d4f0; }
+.chart-container { position: relative; height: 280px; margin-top: 0.5rem; }
+.chart-toolbar { display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.4rem; flex-wrap:wrap; }
+.chart-toolbar button { font-size:0.75rem; padding:0.25rem 0.55rem; border-radius:999px; border:1px solid #3a4a70; background:#151a30; color:#c8d4f0; cursor:pointer; }
+.chart-toolbar button:hover { background:#1f2740; }
+.chart-slider { display:flex; align-items:center; gap:0.4rem; font-size:0.74rem; color:#8a9ac4; flex:1 1 auto; min-width:260px; }
+.chart-slider-range { position:relative; flex:1 1 0; height:18px; }
+.chart-slider-range #day-range-slider { margin:0; }
+.chart-slider span { white-space:nowrap; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.8rem; margin-top: 0.5rem; }
+.summary-item { background: rgba(22,32,60,0.8); border: 1px solid #2e3a5c; border-radius: 8px; padding: 0.7rem; }
+.summary-item .label { font-size: 0.75rem; color: #7c88b4; text-transform: uppercase; letter-spacing: 0.05em; }
+.summary-item .value { font-size: 1.2rem; font-weight: 600; color: #e4f0ff; margin-top: 0.2rem; }
+.table-wrap { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-top:0; margin-bottom:0.4rem;">
+        Project: <code>{{ project_name }}</code>
+        <span class="tag">detail</span>
+    </h2>
+    <p class="muted" style="margin-top:0.1rem;">
+        Input map: <code>{{ input_dir }}</code><br>
+        {% if output_dir %}
+            Output map: <code>{{ output_dir }}</code>
+        {% else %}
+            Output map: <code>nog niet beschikbaar</code>
+        {% endif %}
+    </p>
+
+    <div style="margin-top:0.9rem; display:flex; flex-wrap:wrap; gap:0.6rem;">
+        <button class="btn" onclick="runSimulation('{{ project_name }}')">Simulatie opnieuw draaien</button>
+        {% if has_output %}
+            <a href="{% url 'projects_ui:normalized' project_name=project_name %}" class="btn btn-secondary">
+                Bekijk normalized data
+            </a>
+        {% endif %}
+        <a href="{% url 'projects_ui:index' %}" class="btn btn-secondary">Terug naar projectenlijst</a>
+    </div>
+
+    <script>
+        function runSimulation(projectName) {
+            const url = `/project/${encodeURIComponent(projectName)}/run/`;
+            const statusUrl = `/project/${encodeURIComponent(projectName)}/status/`;
+            fetch(url, {method: "POST", headers: {"X-Requested-With": "XMLHttpRequest"}})
+                .then(r => r.json())
+                .then(() => {
+                    function poll() {
+                        fetch(statusUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.ready && data.detail_url) {
+                                    window.location.reload();
+                                } else {
+                                    setTimeout(poll, 4000);
+                                }
+                            })
+                            .catch(() => setTimeout(poll, 4000));
+                    }
+                    setTimeout(poll, 4000);
+                });
+        }
+    </script>
+</div>
+
+{% if not has_output %}
+<div class="card">
+    <p class="muted">Er zijn nog geen resultaten voor dit project. Start eerst een simulatie.</p>
+</div>
+{% else %}
+{% if viz.summary %}
+<div class="card">
+    <h3 class="viz-section">Kerncijfers</h3>
+    <div class="summary-grid">
+        <div class="summary-item">
+            <div class="label">Piek (kW)</div>
+            <div class="value">{{ viz.summary.peak_kw|floatformat:1 }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Gemiddeld (kW)</div>
+            <div class="value">{{ viz.summary.mean_kw|floatformat:1 }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Totaal (MWh)</div>
+            <div class="value">{{ viz.summary.total_mwh|floatformat:1 }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Snapshots</div>
+            <div class="value">{{ viz.summary.n_snapshots }}</div>
+        </div>
+        <div class="summary-item" style="grid-column: span 2;">
+            <div class="label">Periode</div>
+            <div class="value" style="font-size:0.95rem;">{{ viz.summary.date_range }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3 class="viz-section">Grafieken</h3>
+    <p class="muted" style="margin-top:0;">Volledige periode, filterbaar met de dag-slider en zoom.</p>
+    {{ viz.chart_data|json_script:"chart-data" }}
+    <div class="chart-toolbar">
+        <div class="chart-slider">
+            <span id="slider-start-label">start</span>
+            <div class="chart-slider-range">
+                <div id="day-range-slider"></div>
+            </div>
+            <span id="slider-end-label">end</span>
+        </div>
+        <button type="button" onclick="resetLinkedZoom()">Reset zoom</button>
+    </div>
+    <div id="charts-container"></div>
+</div>
+
+<div class="card">
+    <h3 class="viz-section">Tabellen</h3>
+    {% for t in viz.tables %}
+    <div style="margin-bottom:1.2rem;">
+        <h4 style="margin:0 0 0.4rem 0; font-size:0.98rem; color:#9fb0e0;">{{ t.title }}</h4>
+        <div class="table-wrap">
+            {{ t.html|safe }}
+        </div>
+    </div>
+    {% empty %}
+    <p class="muted">Geen tabellen beschikbaar.</p>
+    {% endfor %}
+</div>
+
+<script>
+(function() {
+    const el = document.getElementById('chart-data');
+    const chartData = el ? JSON.parse(el.textContent) : {};
+    const container = document.getElementById('charts-container');
+
+    const allPlotIds = [];
+    let masterLabels = [];
+    let uniqueDays = [];
+
+    const chartConfigs = [
+        { key: 'combined_load', title: 'Verbruik, vraag en PV (kW)', unit: 'kW' },
+        { key: 'generators_mw', title: 'Generator dispatch (MW)', unit: 'MW' },
+        { key: 'soc_kwh', title: 'Batterij state of charge (kWh)', unit: 'kWh' },
+        { key: 'marginal_price', title: 'Marginale prijs (€/MWh)', unit: '€/MWh' },
+    ];
+
+    // Build a combined load chart (consumption + demand + PV) if data is available
+    (function buildCombinedLoad() {
+        const consumption = chartData['consumption'];
+        const demand = chartData['demand_kw'];
+        const pv = chartData['pv_kw'];
+        if (!consumption && !demand && !pv) return;
+
+        // Prefer labels from consumption, then demand, then PV
+        const base = consumption || demand || pv;
+        const labels = (base && base.labels) ? base.labels.slice() : [];
+        const datasets = [];
+
+        function addSeries(src, label) {
+            if (!src || !src.datasets || !src.datasets.length) return;
+            datasets.push({
+                label: label,
+                data: src.datasets[0].data,
+            });
+        }
+
+        addSeries(consumption, 'Verbruik (kW)');
+        addSeries(demand, 'Vraag (kW)');
+        addSeries(pv, 'PV (kW)');
+
+        chartData['combined_load'] = {
+            labels: labels,
+            datasets: datasets,
+        };
+    })();
+
+    // Use the labels of the first available chart as master timeline
+    for (let i = 0; i < chartConfigs.length; i++) {
+        const cfg = chartConfigs[i];
+        const d = chartData[cfg.key];
+        if (d && d.labels && d.labels.length > 0) {
+            masterLabels = d.labels.slice();
+            break;
+        }
+    }
+    if (masterLabels.length > 0) {
+        const daySet = new Set();
+        masterLabels.forEach(function(lbl) {
+            // Expect ISO-like 'YYYY-MM-DD HH:MM...' or similar
+            const day = String(lbl).slice(0, 10);
+            daySet.add(day);
+        });
+        uniqueDays = Array.from(daySet);
+        uniqueDays.sort();
+
+        const sliderEl = document.getElementById('day-range-slider');
+        const startLabel = document.getElementById('slider-start-label');
+        const endLabel = document.getElementById('slider-end-label');
+        if (sliderEl && startLabel && endLabel && uniqueDays.length > 0 && window.noUiSlider) {
+            noUiSlider.create(sliderEl, {
+                start: [0, uniqueDays.length - 1],
+                connect: true,
+                step: 1,
+                range: {
+                    min: 0,
+                    max: uniqueDays.length - 1,
+                },
+                behaviour: 'drag',
+            });
+            startLabel.textContent = uniqueDays[0];
+            endLabel.textContent = uniqueDays[uniqueDays.length - 1];
+
+            sliderEl.noUiSlider.on('update', function(values) {
+                const sIdx = Math.round(values[0]);
+                const eIdx = Math.round(values[1]);
+                const startDay = uniqueDays[Math.min(sIdx, eIdx)];
+                const endDay = uniqueDays[Math.max(sIdx, eIdx)];
+                startLabel.textContent = startDay;
+                endLabel.textContent = endDay;
+            });
+
+            sliderEl.noUiSlider.on('change', function(values) {
+                const sIdx = Math.round(values[0]);
+                const eIdx = Math.round(values[1]);
+                const startDay = uniqueDays[Math.min(sIdx, eIdx)];
+                const endDay = uniqueDays[Math.max(sIdx, eIdx)];
+
+                // Only adjust the top (combined) chart; others stay as user-zoomed and independent.
+                if (!masterLabels.length) return;
+                let firstIdx = -1;
+                let lastIdx = -1;
+                for (let i = 0; i < masterLabels.length; i++) {
+                    const d = String(masterLabels[i]).slice(0, 10);
+                    if (d >= startDay && d <= endDay) {
+                        firstIdx = i;
+                        break;
+                    }
+                }
+                for (let i = masterLabels.length - 1; i >= 0; i--) {
+                    const d = String(masterLabels[i]).slice(0, 10);
+                    if (d >= startDay && d <= endDay) {
+                        lastIdx = i;
+                        break;
+                    }
+                }
+                if (firstIdx !== -1 && lastIdx !== -1) {
+                    const range = [masterLabels[firstIdx], masterLabels[lastIdx]];
+                    const topId = 'plot-combined_load';
+                    if (document.getElementById(topId)) {
+                        Plotly.relayout(topId, { 'xaxis.range': range });
+                    }
+                }
+            });
+        }
+    }
+
+    chartConfigs.forEach(function(cfg) {
+        const data = chartData[cfg.key];
+        if (!data || !data.labels || data.labels.length === 0) return;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'viz-section';
+        const plotId = 'plot-' + cfg.key;
+        wrap.innerHTML =
+            '<h4 style="margin:0 0 0.4rem 0; font-size:0.98rem; color:#9fb0e0;">' +
+            cfg.title +
+            '</h4><div class="chart-container"><div id="' + plotId + '"></div></div>';
+        container.appendChild(wrap);
+
+        const traces = (data.datasets || []).map(function(ds) {
+            return {
+                x: data.labels,
+                y: ds.data,
+                type: 'scatter',
+                mode: 'lines',
+                name: ds.label,
+            };
+        });
+
+        Plotly.newPlot(plotId, traces, {
+            margin: { t: 10, r: 10, b: 55, l: 60 },
+            xaxis: {
+                title: '',
+                type: 'date',
+                showgrid: true,
+                gridcolor: '#e1e5f2',
+                showline: true,
+                linecolor: '#c0c4d8',
+                linewidth: 1,
+                ticks: 'outside',
+                showticklabels: true,
+                tickformat: '%d %b\n%H:%M',
+                tickangle: 0,
+                nticks: 6,
+            },
+            yaxis: {
+                title: cfg.unit || '',
+                showgrid: true,
+                gridcolor: '#f0f3fa',
+                zeroline: true,
+                zerolinecolor: '#d4d8e8',
+            },
+            showlegend: true,
+        }, {
+            displaylogo: false,
+            modeBarButtonsToRemove: ['select2d', 'lasso2d'],
+        });
+
+        allPlotIds.push(plotId);
+    });
+
+    function syncFromMaster(range) {
+        // Intentionally left empty: charts are not linked anymore.
+        return;
+    }
+
+    window.resetLinkedZoom = function() {
+        const update = { 'xaxis.autorange': true };
+        allPlotIds.forEach(function(id) {
+            Plotly.relayout(id, update);
+        });
+    };
+})();
+</script>
+{% endif %}
+{% endblock %}

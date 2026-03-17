@@ -1,0 +1,89 @@
+INFO:linopy.model: Solve problem using Highs solver
+INFO:linopy.model:Solver options:
+ - log_to_console: False
+INFO:linopy.io:Writing objective.
+
+══ CONFIGURATION ═════════════════════════════════════════════════════
+Config:    /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/config/default.yaml
+Simulator: pypsa
+Output:    /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders
+── loaded ─────────────────────────────────────────────────── 0.00s ──
+
+══ DATA LOADING ══════════════════════════════════════════════════════
+Project folder: smulders — 7 file(s)
+  Iemants NV 541448800000001410_SC_OFFTAKE (2025).xlsx (cached, EAN: 541448800000001410) — 35,036 datapoints
+  Iemants NV 541448860020986524_SC_OFFTAKE (2025).xlsx (cached, EAN: 541448860020986524) — 35,036 datapoints
+  Smulders Projects Belgium NV 541448860023115433_SC_OFFTAKE (2025).xlsx (cached, EAN: 541448860023115433) — 35,036 datapoints
+  Smulders Projects Belgium NV 541449200002510023_SC_OFFTAKE (2025).xlsx (cached, EAN: 541449200002510023) — 35,036 datapoints
+  Smulders Projects Belgium NV 541449200004203947_SC_OFFTAKE (2025).xlsx (cached, EAN: 541449200004203947) — 35,036 datapoints
+  Willems staalconstructies NV 541448800000001533_SC_OFFTAKE (2025).xlsx (cached, EAN: 541448800000001533) — 35,036 datapoints
+  Willems staalconstructies NV 541448860021404829_SC_OFFTAKE (2025).xlsx (cached, EAN: 541448860021404829) — 35,036 datapoints
+Datapoints: 35,036 | Interval: 15 min
+Range:      2025-01-01 00:00 → 2025-12-31 23:45 (364 days)
+Peak power: 4,729.1 kW | Mean: 1,849.3 kW
+── 35,036 datapoints loaded ───────────────────────────────── 0.16s ──
+
+══ NORMALIZATION & EXPORT ════════════════════════════════════════════
+Saved consumption_profile.csv (35,036 rows)
+Saved consumption_profile_hourly.csv (8,759 rows)
+Saved consumption_profile_monthly.csv (12 rows)
+── 3 file(s) exported ─────────────────────────────────────── 0.04s ──
+
+══ PV DATA ═══════════════════════════════════════════════════════════
+PV folder: /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/pv — 11 file(s)
+  Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_CIS_14_38deg_0deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_CdTe_14_39deg_0deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_20deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_30deg_0deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_38deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_38deg_0deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Timeseries_51.297_5.105_SA3_2307kWp_crystSi_20_38deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Timeseries_51.297_5.105_SA3_2307kWp_crystSi_21_38deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Timeseries_51.297_5.105_SA3_2307kWp_crystSi_25_38deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Timeseries_51.297_5.105_SA3_2307kWp_crystSi_50_38deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+  Timeseries_51.297_5.105_SA3_4500kWp_crystSi_25_38deg_-5deg_2020_2023.csv (adapter: pvgis_timeseries) — 35,064 datapoints
+PV projected from last available year to match consumption period
+Saved pv_generation_profile.csv (35,036 rows)
+Saved pv_generation_profile_hourly.csv (8,759 rows)
+Saved pv_generation_profile_monthly.csv (12 rows)
+PV range: 2025-01-01 → 2025-12-31 | Peak: 20,938.3 kW
+── 35,036 PV datapoints | 3 file(s) exported ──────────────── 1.32s ──
+
+══ SIMULATION — PYPSA ════════════════════════════════════════════════
+Timesteps: 35,036 | Interval: 15 min
+Writing constraints.:   0%|[38;2;128;191;255m          [0m| 0/12 [00:00<?, ?it/s]Writing constraints.:  33%|[38;2;128;191;255m███▎      [0m| 4/12 [00:00<00:00, 31.15it/s]Writing constraints.:  67%|[38;2;128;191;255m██████▋   [0m| 8/12 [00:00<00:00, 32.24it/s]Writing constraints.: 100%|[38;2;128;191;255m██████████[0m| 12/12 [00:00<00:00, 28.38it/s]Writing constraints.: 100%|[38;2;128;191;255m██████████[0m| 12/12 [00:00<00:00, 29.22it/s]
+Writing continuous variables.:   0%|[38;2;128;191;255m          [0m| 0/5 [00:00<?, ?it/s]Writing continuous variables.: 100%|[38;2;128;191;255m██████████[0m| 5/5 [00:00<00:00, 188.02it/s]
+INFO:linopy.io: Writing time: 0.47s
+INFO:linopy.constants: Optimization successful: 
+Status: ok
+Termination condition: optimal
+Solution: 175181 primals, 420434 duals
+Objective: -4.98e+06
+Solver model: available
+Solver message: Optimal
+
+INFO:pypsa.optimization.optimize:The shadow-prices of the constraints Generator-fix-p-lower, Generator-fix-p-upper, StorageUnit-ext-p_dispatch-lower, StorageUnit-ext-p_dispatch-upper, StorageUnit-ext-p_store-lower, StorageUnit-ext-p_store-upper, StorageUnit-ext-state_of_charge-lower, StorageUnit-ext-state_of_charge-upper, StorageUnit-energy_balance were not assigned to the network.
+INFO:pypsa.network.io:Exported network 'Unnamed Network' saved to '/Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/pypsa_results contains: generators, buses, carriers, storage_units, sub_networks, loads
+Status:    ok (optimal)
+Results exported to /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/pypsa_results
+Optimal battery power: 1.00 MW
+── 35,036 timesteps optimized — ok (optimal) ──────────────── 5.52s ──
+
+══ VISUALIZATION ═════════════════════════════════════════════════════
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/consumption.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/consumption_and_pv.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/grid_dispatch.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/battery_state_of_charge.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/marginal_price.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/battery_charge_discharge.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/dist_costs_comparison.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/dist_costs_summary_belgian_general.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/dist_costs_monthly_belgian_general.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/dist_costs_summary_static_qv.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/images/dist_costs_monthly_static_qv.png
+  /Users/frederikkaputa/Library/CloudStorage/Dropbox/Documents/EnergyLabs/PyPSA/output/smulders/results_report.pdf
+── 12 file(s) generated ───────────────────────────────────── 3.35s ──
+
+══════════════════════════════════════════════════════════════════════
+  Pipeline completed in 10.44s
+══════════════════════════════════════════════════════════════════════

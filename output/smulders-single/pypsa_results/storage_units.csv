@@ -1,0 +1,2 @@
+name,bus,control,type,p_nom_extendable,p_nom_max,carrier,capital_cost,max_hours,efficiency_store,efficiency_dispatch
+battery,site,PQ,,True,1.0,battery,54633.39212040678,4.0,0.9486832980505138,0.9486832980505138

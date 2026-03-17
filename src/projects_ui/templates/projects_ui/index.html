@@ -1,0 +1,128 @@
+{% extends "projects_ui/base.html" %}
+
+{% block head_extra %}
+<script>
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+function runSimulation(projectName) {
+    const url = `/project/${encodeURIComponent(projectName)}/run/`;
+    const statusUrl = `/project/${encodeURIComponent(projectName)}/status/`;
+    const btn = document.getElementById(`run-btn-${projectName}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Simulatie gestart...";
+    }
+
+    fetch(url, {
+        method: "POST",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": getCookie("csrftoken") || "",
+        },
+    }).then(function (response) {
+        if (!response.ok) {
+            throw new Error("Kon simulatie niet starten");
+        }
+        return response.json();
+    }).then(function () {
+        pollStatus(projectName, statusUrl);
+    }).catch(function (err) {
+        alert(err);
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Start simulatie";
+        }
+    });
+}
+
+function pollStatus(projectName, statusUrl) {
+    const intervalMs = 4000;
+    function check() {
+        fetch(statusUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(r => r.json())
+            .then(data => {
+                if (data.ready && data.detail_url) {
+                    window.location.href = data.detail_url;
+                } else {
+                    setTimeout(check, intervalMs);
+                }
+            })
+            .catch(() => {
+                setTimeout(check, intervalMs);
+            });
+    }
+    setTimeout(check, intervalMs);
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-top:0; margin-bottom:0.3rem;">Projecten in <code>{{ projects_root }}</code></h2>
+    <p class="muted" style="margin-top:0;">
+        Elke map onder <code>data/projects</code> wordt gezien als een apart project (bijv. <code>smulders</code>).
+        Output wordt verwacht onder <code>{{ output_root }}</code>.
+    </p>
+
+    {% if not projects %}
+        <p class="muted">Geen projecten gevonden. Maak mappen aan onder <code>data/projects/&lt;projectnaam&gt;</code>.</p>
+    {% else %}
+        <table>
+            <thead>
+            <tr>
+                <th style="width: 28%;">Project</th>
+                <th style="width: 18%;">Status</th>
+                <th style="width: 30%;">Acties</th>
+                <th>Output map</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for p in projects %}
+                <tr>
+                    <td>
+                        <a href="{{ p.detail_url }}"><strong>{{ p.name }}</strong></a>
+                    </td>
+                    <td>
+                        {% if p.has_output %}
+                            <span class="status-pill status-ready">Klaar · resultaten beschikbaar</span>
+                        {% else %}
+                            <span class="status-pill status-pending">Nog niet gedraaid</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button id="run-btn-{{ p.name }}" class="btn" onclick="runSimulation('{{ p.name }}')">
+                            Start simulatie
+                        </button>
+                        {% if p.has_output %}
+                            <a href="{{ p.detail_url }}" class="btn btn-secondary">Naar visualisatie</a>
+                        {% endif %}
+                    </td>
+                    <td class="muted">
+                        {{ output_root }}/{{ p.name }}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 style="margin-top:0;">Gebruik</h3>
+    <div class="chips">
+        <span class="chip"><code>python manage.py runserver</code></span>
+        <span class="chip"><code>http://localhost:8000/</code></span>
+        <span class="chip"><code>data/projects/&lt;project&gt;</code> → input</span>
+        <span class="chip"><code>output/&lt;project&gt;</code> → resultaten</span>
+    </div>
+    <p class="muted" style="margin-top:0.7rem;">
+        De web-UI start onderliggend de bestaande CLI
+        <code>energy_pipeline.scripts.run_pipeline</code> met de juiste paden, inclusief visualisatie en monthly exports.
+    </p>
+</div>
+{% endblock %}
+

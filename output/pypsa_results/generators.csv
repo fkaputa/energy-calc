@@ -1,0 +1,2 @@
+name,bus,control,type,p_nom,carrier,p_nom_opt
+grid,site,Slack,,1.0,grid,1.0

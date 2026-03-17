@@ -1,0 +1,588 @@
+///$tab Main
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='€ #.##0,00;€ -#.##0,00';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='YYYY-MM-DD';
+SET TimestampFormat='YYYY-MM-DD hh:mm:ss';
+SET MonthNames='jan;feb;mrt;apr;mei;jun;jul;aug;sep;okt;nov;dec';
+SET DayNames='ma;di;wo;do;vr;za;zo';
+
+SET vAansluiting = ApplyMap('MapAV', EAN,200);//200; //1300; // kVA
+SET vAansluiting_Injectie = 1300; //1300; // kW
+SET vBatkWh = 1000; //3700; //780; //780; //1000; //; //400; //1000;// cabinet 260kWh
+LET vBatkW = $(vBatkWh)/2; //160; //3000; //500; 
+
+
+
+SET vBatInjkW = $(vBatkW);
+
+SET vPathQVD = C:\Temp\QVD\Imbalance_API_MARI_v2\; //C:\Temp\QVD\Imbalance_API_MARI_v2\; //C:\Temp\QVD\Imbalance_API_CSV_v35\;
+///$tab Extra Params
+MapAV:
+MAPPING
+LOAD * INLINE [
+    EAN, AV
+    541448800000001410, 1700
+    541448800000001533, 1350
+    541448860020986524, 1500
+    541448860021404829, 5
+    541448860023115433, 250
+    541449200002510023, 1500
+    541449200004203947, 1800
+];
+
+///$tab PV
+SET ThousandSep=',';
+SET DecimalSep='.';
+
+//
+SET vFolder = C:\Users\BartEnergylabsAI\Energy Labs AI\Data Analytics - Documents\SMulders\PV info\;
+SET vFileName = Timeseries_51.297_5.105_SA3_2307kWp_crystSi_25_38deg_-5deg_2020_2023; 
+// Timeseries_51.297_5.105_SA3_4500kWp_crystSi_25_38deg_-5deg_2020_2023;
+// Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_38deg_-5deg_2020_2023;
+// 1.9GWh Timeseries_51.297_5.105_SA3_2307kWp_crystSi_25_38deg_-5deg_2020_2023; // ==> This is closest with 25% and optimized azimuth & slope
+// 2.053GWh Timeseries_51.297_5.105_SA3_2307kWp_crystSi_21_38deg_-5deg_2020_2023;
+// 2.08GWh Timeseries_51.297_5.105_SA3_2307kWp_crystSi_20_38deg_-5deg_2020_2023;
+// 1.2GWh Timeseries_51.297_5.105_SA3_2307kWp_crystSi_50_38deg_-5deg_2020_2023;
+// 2.17GWh Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_20deg_-5deg_2020_2023;
+// 2.26GWh Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_30deg_0deg_2020_2023;
+// 2.26GWh Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_CdTe_14_39deg_0deg_2020_2023;
+// 2.24GWh Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_CIS_14_38deg_0deg_2020_2023; 
+// 2.23GWh Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_38deg_0deg_2020_2023; 
+// 3.2GWh seems too high ==> Arendonk_Timeseries_51.297_5.105_SA3_2307kWp_crystSi_14_38deg_-5deg_2020_2023;
+
+TempPV:
+LOAD 
+	TimeStamp(AddYears(TimeStamp#(time,'YYYYMMDD:hhmm'), 2)) as time, //20231231:2310, 
+     P, 
+     [G(i)], 
+     H_sun, 
+     T2m, 
+     WS10m, 
+     Int
+     , RecNo() as rec
+FROM
+[$(vFolder)$(vFileName).csv]
+(txt, codepage is 1252, embedded labels, delimiter is ',', msq, header is 10 lines, no eof)
+WHERE NOT IsNull(TimeStamp(TimeStamp#(time,'YYYYMMDD:hhmm')));
+
+
+PV:
+LOAD 
+	*
+	, pv_kw_noisy as pv_power_kw
+//	, pv_kw_noisy as power_kw
+;
+LOAD 
+	'key:' & TimeStamp(TimeStamp#(TimeStamp(time, 'YYYYMMDD:hh'), 'YYYYMMDD:hh') + (IterNo()-1) * Time#('15:00','mm:ss')) as datequarterhour_key
+	, TimeStamp(TimeStamp#(TimeStamp(time, 'YYYYMMDD:hh'), 'YYYYMMDD:hh') + (IterNo()-1) * Time#('15:00','mm:ss')) as datequarterhour
+	, 1 * P/1000 as pv_kw_noisy
+	, *
+RESIDENT TempPV
+WHILE IterNo() <=4; 
+DROP TABLE TempPV;
+
+
+///$tab Fluvius
+
+// Convert to UTC: 
+// TimeStamp(datetime_local + (TimeStamp(datetime_local) - ConvertToLocalTime(TimeStamp(datetime_local), 'Amsterdam'))) as datetime_UTC
+SET ThousandSep='.';
+SET DecimalSep=',';
+
+//SET vPath_Client = C:\Users\BartEnergylabsAI\Energy Labs AI\Data Analytics - Documents\SMulders\FLuvius data\; 
+//SET vFileName = Willems staalconstructies NV 541448860021404829_SC_OFFTAKE (2025).xlsx;
+//
+//T:
+//LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+//	 Date,
+//     Time, 
+//     "541448860021404829_SC_OFFTAKE_ACT_BR4 [kWh]" * 4 as cons_power_kw,
+//     "541448860021404829_SC_OFFTAKE_ACT_BR4 [kWh]" as cons_energy_kwh,
+//     '541448860021404829' as EAN
+//     , 'Willems Balen 4829' as EAN_Description
+//FROM
+//[$(vPath_Client)$(vFileName)]
+//(ooxml, embedded labels, table is [Time Series]);
+//
+//SET vFileName = Willems staalconstructies NV 541448800000001533_SC_OFFTAKE (2025).xlsx;
+//CONCATENATE (T)
+//LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+//	 Date,
+//     Time, 
+//     If("541448800000001533_SC_OFFTAKE_ACT_BR4 [kWh]"='NaN',0,"541448800000001533_SC_OFFTAKE_ACT_BR4 [kWh]") * 4 as cons_power_kw,
+//     If("541448800000001533_SC_OFFTAKE_ACT_BR4 [kWh]"='NaN',0,"541448800000001533_SC_OFFTAKE_ACT_BR4 [kWh]") as cons_energy_kwh,
+//     '541448800000001533' as EAN
+//     , 'Willems Balen 1533' as EAN_Description
+//FROM
+//[$(vPath_Client)$(vFileName)]
+//(ooxml, embedded labels, table is [Time Series]);
+//
+//SET vFileName = Smulders Projects Belgium NV 541449200004203947_SC_OFFTAKE (2025).xlsx;
+//CONCATENATE (T)
+//LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+//	 Date,
+//     Time, 
+//     "541449200004203947_SC_OFFTAKE_ACT_BR4 [kWh]" * 4 as cons_power_kw,
+//     "541449200004203947_SC_OFFTAKE_ACT_BR4 [kWh]" as cons_energy_kwh,
+//     '541449200004203947' as EAN
+//     , 'Smulders Hoboken 3947' as EAN_Description    
+//FROM
+//[$(vPath_Client)$(vFileName)]
+//(ooxml, embedded labels, table is [Time Series]);
+//
+//SET vFileName = Smulders Projects Belgium NV 541449200002510023_SC_OFFTAKE (2025).xlsx;
+//CONCATENATE (T)
+//LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+//	 Date,
+//     Time, 
+//     "541449200002510023_SC_OFFTAKE_ACT_BR4 [kWh]" * 4 as cons_power_kw,
+//     "541449200002510023_SC_OFFTAKE_ACT_BR4 [kWh]" as cons_energy_kwh,
+//     '541449200002510023' as EAN
+//     , 'Smulders Hoboken 0023' as EAN_Description    
+//FROM
+//[$(vPath_Client)$(vFileName)]
+//(ooxml, embedded labels, table is [Time Series]);
+//
+//SET vFileName = Smulders Projects Belgium NV 541448860023115433_SC_OFFTAKE (2025).xlsx;
+//CONCATENATE (T)
+//LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+//	 Date,
+//     Time, 
+//     "541448860023115433_SC_OFFTAKE_ACT_BR4 [kWh]" * 4 as cons_power_kw,
+//     "541448860023115433_SC_OFFTAKE_ACT_BR4 [kWh]" as cons_energy_kwh,
+//     '541448860023115433' as EAN
+//     , 'Smulders Hoboken 5433' as EAN_Description      
+//FROM
+//[$(vPath_Client)$(vFileName)]
+//(ooxml, embedded labels, table is [Time Series]);
+//
+//SET vFileName = Iemants NV 541448860020986524_SC_OFFTAKE (2025).xlsx;
+//CONCATENATE (T)
+//LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+//	 Date,
+//     Time, 
+//     If("541448860020986524_SC_OFFTAKE_ACT_BR4 [kWh]"='NaN',0,"541448860020986524_SC_OFFTAKE_ACT_BR4 [kWh]") * 4 as cons_power_kw,
+//     If("541448860020986524_SC_OFFTAKE_ACT_BR4 [kWh]"='NaN',0,"541448860020986524_SC_OFFTAKE_ACT_BR4 [kWh]") as cons_energy_kwh,
+//     '541448860020986524' as EAN
+//     , 'Iemants Arendonk 6524' as EAN_Description      
+//FROM
+//[$(vPath_Client)$(vFileName)]
+//(ooxml, embedded labels, table is [Time Series]);
+
+SET vFileName = Iemants NV 541448800000001410_SC_OFFTAKE (2025).xlsx;
+//CONCATENATE (T)
+T:
+LOAD TimeStamp(RangeSum(Date#(Date,'YYYY-MM-DD'), Time#(Time,'hh:mm'))) as datequarterhour, // 
+	 Date,
+     Time, 
+     "541448800000001410_SC_OFFTAKE_ACT_BR4 [kWh]" * 4 as cons_power_kw,
+     "541448800000001410_SC_OFFTAKE_ACT_BR4 [kWh]" as cons_energy_kwh,
+     '541448800000001410' as EAN
+     , 'Iemants Arendonk 1410' as EAN_Description      
+FROM
+[$(vPath_Client)$(vFileName)]
+(ooxml, embedded labels, table is [Time Series]);
+
+Fluvius:
+LOAD 
+	*
+	, 'key:' & TimeStamp(datequarterhour) as datequarterhour_key
+	, 0 as inj_power_kw
+RESIDENT T;
+DROP Table T;
+
+
+///$tab Combine
+
+LEFT JOIN (Fluvius)
+LOAD
+	datequarterhour_key
+	, pv_power_kw as temp_pv_power_kw
+RESIDENT PV;
+
+DROP TABLE PV;
+///$tab Generic
+
+SET ThousandSep=',';
+SET DecimalSep='.';
+
+
+TempPower:
+LOAD 
+	*
+	, 1 as matchFlag
+	, og_power_kw as [Afname (KW)]
+	, 0 as [Injectie (KW)]
+	, og_power_kw as [Active Power (KW)]
+	, 0 as [Reactive Power (KVR)]
+	
+	, og_power_kw as c2_power_kw
+	, og_power_kw as c1_power_kw
+	
+	// power_kw used for BESS simulation
+	, (og_power_kw - pv_power_kw) as power_kw
+	
+	// power scenario 	
+	, cons_power_kw as power_scen1_kw
+	, - inj_power_kw as power_scen2_kw
+	, og_power_kw as power_scen3_kw
+	, (og_power_kw - pv_power_kw) as power_scen4_kw
+	, (- pv_power_kw) as power_scen5_kw
+	
+	// high power
+	, og_power_kw - RangeMin(og_power_kw,$(vHighPower)) as high_power_kw
+	, RangeMax(0, RangeMin(og_power_kw,$(vBasePower))) as base_power_kw
+	, cons_power_kw - RangeMin(cons_power_kw,$(vHighPower)) as high_power_scen1_kw
+	, RangeMax(0, RangeMin(cons_power_kw,$(vBasePower))) as base_power_scen1_kw
+	, - inj_power_kw - RangeMin(- inj_power_kw,$(vHighPower)) as high_power_scen2_kw
+	, RangeMax(0, RangeMin(- inj_power_kw,$(vBasePower))) as base_power_scen2_kw
+	, og_power_kw - RangeMin(og_power_kw,$(vHighPower)) as high_power_scen3_kw
+	, RangeMax(0, RangeMin(og_power_kw,$(vBasePower))) as base_power_scen3_kw
+	, (og_power_kw - pv_power_kw) - RangeMin((og_power_kw - pv_power_kw),$(vHighPower)) as high_power_scen4_kw
+	, RangeMax(0, RangeMin((og_power_kw - pv_power_kw),$(vBasePower))) as base_power_scen4_kw
+	, (- pv_power_kw) - RangeMin((- pv_power_kw),$(vHighPower)) as high_power_scen5_kw
+	, RangeMax(0, RangeMin((- pv_power_kw),$(vBasePower))) as base_power_scen5_kw
+;
+LOAD 
+	*
+	, RangeSum(cons_power_kw, - inj_power_kw) as og_power_kw
+	, RangeSum(0,temp_pv_power_kw) as pv_power_kw
+RESIDENT Fluvius;
+DROP TABLE Fluvius;
+RENAME TABLE TempPower To Power;
+
+///$tab Dates
+
+Date:
+LOAD DISTINCT 
+	datequarterhour
+	, Year(datequarterhour) as year
+	, TimeStamp(Floor(datequarterhour) + hour(datequarterhour) / 24) as datehour
+	, hour(datequarterhour) as hour
+	, Date(Floor(datequarterhour)) as date
+	, Date(MonthStart(Floor(datequarterhour)),'MMM-YY') as monthyear
+	, Month(datequarterhour) as month
+	, WeekDay(datequarterhour) as weekday
+	, Minute(datequarterhour) as minute
+	, Time(frac(datequarterhour),'hh:mm') as hourminute
+	, Date(WeekStart(Floor(datequarterhour))) as weekstart
+RESIDENT [Power];
+
+LEFT JOIN (Power)
+LOAD 
+	datequarterhour
+	, monthyear as my
+RESIDENT Date;
+
+///$tab PV_BESS
+
+// Calculate BESS reacting on PV only: charging when net injecting
+SET vEfficiency = .88;
+
+TempPower:
+LOAD 
+
+	// CASE: certain months CHRG WITH PV OR AT NIGHT DCHRG INTO HIGH PEAK POWER BAND ELSE in all bands
+	If(WildMatch(Num(Month(datequarterhour)),0)>0, // 1,12,11
+		If(power_kw < 0 
+			, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_capacity_kwh')), 0) * 4, $(vBatkW)), - power_kw) 
+			, If(high_power_kw = 0 and (hour(datequarterhour) < 23 OR hour(datequarterhour) > 16)
+				// Charge from net when no highpower usage
+				, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_capacity_kwh')), 0) * 4, $(vBatkW)), $(vHighPower) - power_kw)
+				// DCHRG INTO HIGH PEAK POWER BAND
+				, if(high_power_kw > 0
+					, - RangeMin(RangeMin(RangeMin(RangeMax(0,Peek('bess_pv_capacity_kwh')),$(vBatkWh)) * 4, $(vBatkW)), high_power_kw),0)))
+		, If(power_kw < 0
+			// CHRG from PV
+			, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_capacity_kwh')), 0) * 4, $(vBatkW)), - power_kw)
+			// DCHRG INTO ALL POWER BANDS
+			, - RangeMin(RangeMin(RangeMin(RangeMax(0,Peek('bess_pv_capacity_kwh')),$(vBatkWh)) * 4, $(vBatkW)), power_kw))
+		) as bess_pv_power_kw,
+	// For analysis purposes
+	// CASE: in DEC-JAN CHRG WITH PV OR AT NIGHT DCHRG INTO HIGH PEAK POWER BAND ELSE in all bands
+	If(Match(Num(Month(datequarterhour)),1,12)>0,
+		If(power_kw < 0 
+			, 'Charge from PV' 
+			, If(high_power_kw = 0 and (hour(datequarterhour) < 23 OR hour(datequarterhour) > 0)
+				// 
+				, 'Charge from net when no basepower usage'
+				// DCHRG INTO HIGH PEAK POWER BAND
+				, if(high_power_kw > 0
+					, 'Discharge into high power band'
+					,'Do nothing')))
+		, If(power_kw < 0
+			, 'Charge from PV'
+			// DCHRG INTO ALL POWER BANDS
+			, 'Discharge from BESS')
+		) as bess_pv_power_comment
+
+		
+	
+	, RangeMax(RangeMin(RangeSum(RangeMax(0,Peek('bess_pv_capacity_kwh')), Peek('bess_pv_power_kw')/4),$(vBatkWh)),0) as bess_pv_capacity_kwh
+	, *
+	// High Power Flags & Sequences
+	, If((Peek('high_power_kw') = 0 and high_power_kw > 0) OR (Peek('high_power_kw') > 0 and high_power_kw = 0), RangeSum(Peek('high_power_seq'),+1), Peek('high_power_seq')) as high_power_seq
+	, If(high_power_kw > 0, 1, 0) as high_power_flag
+	, If((Peek('high_power_scen1_kw') = 0 and high_power_scen1_kw > 0) OR (Peek('high_power_scen1_kw') > 0 and high_power_scen1_kw = 0), RangeSum(Peek('high_power_scen1_seq'),+1), Peek('high_power_scen1_seq')) as high_power_scen1_seq
+	, If(high_power_scen1_kw > 0, 1, 0) as high_power_scen1_flag
+	, If((Peek('high_power_scen2_kw') = 0 and high_power_scen2_kw > 0) OR (Peek('high_power_scen2_kw') > 0 and high_power_scen2_kw = 0), RangeSum(Peek('high_power_scen2_seq'),+1), Peek('high_power_scen2_seq')) as high_power_scen2_seq
+	, If(high_power_scen2_kw > 0, 1, 0) as high_power_scen2_flag
+	, If((Peek('high_power_scen3_kw') = 0 and high_power_scen3_kw > 0) OR (Peek('high_power_scen3_kw') > 0 and high_power_scen3_kw = 0), RangeSum(Peek('high_power_scen3_seq'),+1), Peek('high_power_scen3_seq')) as high_power_scen3_seq
+	, If(high_power_scen3_kw > 0, 1, 0) as high_power_scen3_flag
+	, If((Peek('high_power_scen4_kw') = 0 and high_power_scen4_kw > 0) OR (Peek('high_power_scen4_kw') > 0 and high_power_scen4_kw = 0), RangeSum(Peek('high_power_scen2_seq'),+1), Peek('high_power_scen4_seq')) as high_power_scen4_seq
+	, If(high_power_scen4_kw > 0, 1, 0) as high_power_scen4_flag
+	, If((Peek('high_power_scen5_kw') = 0 and high_power_scen5_kw > 0) OR (Peek('high_power_scen5_kw') > 0 and high_power_scen5_kw = 0), RangeSum(Peek('high_power_scen5_seq'),+1), Peek('high_power_scen5_seq')) as high_power_scen5_seq
+	, If(high_power_scen5_kw > 0, 1, 0) as high_power_scen5_flag
+RESIDENT Power
+ORDER BY EAN, datequarterhour asc; 
+DROP TABLE Power; 
+
+
+Power: 
+LOAD
+	*
+	, If((Peek('high_power_scen6_kw') = 0 and high_power_scen6_kw > 0) OR (Peek('high_power_scen6_kw') > 0 and high_power_scen6_kw = 0), RangeSum(Peek('high_power_scen6_seq'),+1), Peek('high_power_scen6_seq')) as high_power_scen6_seq
+	, If(high_power_scen6_kw > 0, 1, 0) as high_power_scen6_flag
+;
+LOAD
+	*
+	, RangeSum(power_kw, bess_pv_power_kw) as c3_power_kw
+	, RangeSum(power_kw, bess_pv_power_kw) as power_scen6_kw
+	, RangeSum(power_kw, bess_pv_power_kw) - RangeMin(RangeSum(power_kw, bess_pv_power_kw),$(vHighPower)) as high_power_scen6_kw
+	, RangeMax(0, RangeMin(RangeSum(power_kw, bess_pv_power_kw),$(vBasePower))) as base_power_scen6_kw
+	, bess_pv_capacity_kwh as bess_pv_scen6_capacity_kwh
+Resident TempPower
+ORDER BY EAN, datequarterhour asc; 
+DROP TABLE TempPower;
+///$tab Calculations
+//---------------- CALCULATIONS ---------------
+QhData:
+LOAD 
+	*
+     // use fixed peak
+    , RangeMax(0,$(vAansluiting) - RangeMax(0,[Apparent Power (kVA)])) as [Bandbreedte Power (kVA)]
+    , RangeMax(0,$(vAansluiting)/4 - RangeMax(0,[Apparent Energy (kVAh)])) as [Bandbreedte Energy (kVAh)]
+    , RangeMax(0,$(vAansluiting) - RangeMax(0,[Afname (kVA)])) as [Bandbreedte (kVA)]
+    , RangeMax(0,$(vAansluiting)/4 - RangeMax(0,[Afname (kVAh)])) as [Bandbreedte (kVAh)]
+    , RangeMax(0,$(vAansluiting) - RangeMax(0,[Afname (kW)])) as [Bandbreedte (kW)]
+    , RangeMax(0,$(vAansluiting)/4 - RangeMax(0,[Afname (kWh)])) as [Bandbreedte (kWh)]
+    , RangeMin(0,- $(vAansluiting_Injectie) - RangeMin(0,[Injectie (kW)])) as [Bandbreedte Injectie (kW)]
+    , RangeMin(0,- $(vAansluiting_Injectie)/4 - RangeMin(0,[Injectie (kWh)])) as [Bandbreedte Injectie (kWh)]
+; 
+LOAD 
+	*
+	// REQUIRED FIELDS
+//	, RangeSum([Active Energy (KW)],0) AS [Afname (kW)]
+//	, RangeSum([Active Energy (KW)],0)/4 AS [Afname (kWh)]
+
+	, Sqrt(RangeSum(Pow([Afname (KW)],2),Pow([Reactive Power (KVR)],2))) AS [Afname (kVA)] // https://control.com/technical-articles/active-power-reactive-power-apparent-power-and-the-role-of-power-factor/
+	, Sqrt(RangeSum(Pow([Afname (KW)],2),Pow([Reactive Power (KVR)],2)))/4 AS [Afname (kVAh)] // Appparent Power : S^2 = P^2 + Q^2 (Where S = Apparent Power measured in kVA, Q = Reactive Power in kVAR and P = Active Power in kW)
+
+	, If([Active Power (KW)] < 0, -1, 1) * Sqrt(RangeSum(Pow([Active Power (KW)],2),Pow([Reactive Power (KVR)],2))) AS [Apparent Power (kVA)] // https://control.com/technical-articles/active-power-reactive-power-apparent-power-and-the-role-of-power-factor/
+	, If([Active Power (KW)] < 0, -1, 1) * Sqrt(RangeSum(Pow([Active Power (KW)],2),Pow([Reactive Power (KVR)],2)))/4 AS [Apparent Energy (kVAh)] // Appparent Power : S^2 = P^2 + Q^2 (Where S = Apparent Power measured in kVA, Q = Reactive Power in kVAR and P = Active Power in kW)
+	, [Active Power (KW)] AS [Active Power (kW)]
+	, [Active Power (KW)] / 4 AS [Active Energy (kWh)]
+	// Afname & Injectie apart
+	, [Afname (KW)] AS [Afname (kW)]
+	, [Afname (KW)]/4 AS [Afname (kWh)]
+	, [Injectie (KW)] / 4 AS [Injectie (kWh)]
+	, [Injectie (KW)] as [Injectie (kW)]
+;
+LOAD 
+	*
+	, EAN & '|' & my as my_key 
+RESIDENT Power;
+DROP TABLE Power;
+///$tab Power Regime
+RENAME TABLE QhData TO Power;
+SET vPower_Regime = power_scen4_kw;
+
+TempPower:
+LOAD
+	*
+	, If($(vPower_Regime) > $(vHighPower), 1,0) as regime_high_flag
+	, If($(vPower_Regime) > $(vHighPower) AND Peek('$(vPower_Regime)') < $(vHighPower)
+		, RangeSum(Peek('regime_high_id'),1)
+		, If($(vPower_Regime) < $(vHighPower) AND Peek('$(vPower_Regime)') > $(vHighPower)
+			, RangeSum(Peek('regime_high_id'),1)
+			, Peek('regime_high_id'))) as regime_high_id
+RESIDENT
+	Power
+ORDER BY EAN, datequarterhour;
+
+DROP TABLE Power;
+RENAME TABLE TempPower TO Power;
+
+Regime:
+LOAD
+	regime_high_id
+	, Sum($(vPower_Regime)-$(vHighPower))/4 as regime_high_kwh
+RESIDENT Power
+GROUP BY [regime_high_id];
+	
+
+//===== CALCULATION OF BESS WITH HIGH POWER LIMITATION =====
+// we will try to remove the high power band; limiting monthly peak and reducing distr. costs
+// how: we know (or need to forecast in later phase) the high power band required kwh
+// In the regime preceding this high power regime we will pick the newest date which equals such kwh availabl
+
+Left Join (Power)
+LOAD 
+	regime_high_id
+	, regime_high_kwh as regime_high_qh_kwh
+RESIDENT Regime;
+
+Left Join (Power)
+LOAD 
+	regime_high_id  - 1 as regime_high_id
+	, regime_high_kwh as regime_high_nextqh_kwh
+RESIDENT Regime;
+///$tab BESS Opt
+// Calculate BESS reacting on PV only: charging when net injecting
+SET vEfficiency = .88;
+
+TempPower:
+LOAD 
+	*
+	// CASE: in DEC-JAN CHRG WITH PV OR AT NIGHT DCHRG INTO HIGH PEAK POWER BAND ELSE in all bands
+	, If(WildMatch(Num(Month(datequarterhour)),0)>0, // 1,12,11
+		If(power_kw < 0 
+			, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_pk_capacity_kwh')), 0) * 4, $(vBatkW)), - power_kw) 
+			, If(high_power_kw = 0 and (hour(datequarterhour) < 23 OR hour(datequarterhour) > 16)
+				// Charge from net when no highpower usage
+				, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_pk_capacity_kwh')), 0) * 4, $(vBatkW)), $(vHighPower) - power_kw)
+				// DCHRG INTO HIGH PEAK POWER BAND
+				, if(high_power_kw > 0
+					, - RangeMin(RangeMin(RangeMin(RangeMax(0,Peek('bess_pv_pk_capacity_kwh')),$(vBatkWh)) * 4, $(vBatkW)), high_power_kw),0)))
+		, If(power_kw < 0
+			// CHRG from PV
+			, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_pk_capacity_kwh')), 0) * 4, $(vBatkW)), - power_kw)
+			, If(regime_high_flag = 0 AND regime_high_nextqh_kwh > 0
+				, If(regime_high_nextqh_kwh > Peek('bess_pv_pk_capacity_kwh')
+					// CHARGE UPTO MIN. NEXT QH
+					, RangeMin(RangeMin(RangeMax($(vBatkWh) - RangeMax(0,Peek('bess_pv_pk_capacity_kwh')), 0) * 4, $(vBatkW)), $(vHighPower) - power_kw)					
+					// DCHRG PARTIAL INTO ALL POWER BANDS
+					, - RangeMin(RangeMin(RangeMin(RangeMax(0,Peek('bess_pv_pk_capacity_kwh') - regime_high_nextqh_kwh),$(vBatkWh)) * 4, $(vBatkW)), power_kw))
+				, If(regime_high_flag = 1
+					// DCHRG FULL INTO HIGH POWER BAND
+					, - RangeMin(RangeMin(RangeMin(RangeMax(0,Peek('bess_pv_pk_capacity_kwh')),$(vBatkWh)) * 4, $(vBatkW)), power_kw - $(vHighPower))
+					// DCHRG FULL INTO ALL POWER BANDS
+					, - RangeMin(RangeMin(RangeMin(RangeMax(0,Peek('bess_pv_pk_capacity_kwh')),$(vBatkWh)) * 4, $(vBatkW)), power_kw))))
+		) as bess_pv_pk_power_kw
+	
+	, RangeMax(RangeMin(RangeSum(RangeMax(0,Peek('bess_pv_pk_capacity_kwh')), Peek('bess_pv_pk_power_kw')/4),$(vBatkWh)),0) as bess_pv_pk_capacity_kwh	
+RESIDENT Power
+ORDER BY EAN, datequarterhour asc; 
+DROP TABLE Power; 
+
+QhData:
+LOAD 
+	*
+	// High Power Flags & Sequences
+	, If((Peek('high_power_scen7_kw') = 0 and high_power_scen7_kw > 0) OR (Peek('high_power_scen7_kw') > 0 and high_power_scen7_kw = 0), RangeSum(Peek('high_power_scen7_seq'),+1), Peek('high_power_scen7_seq')) as high_power_scen7_seq
+	, If(high_power_scen7_kw > 0, 1, 0) as high_power_scen7_flag	
+;	
+LOAD 
+	*
+	// extra FIELDS
+	, (bess_pv_pk_power_kw + $(vPower_Regime)) - RangeMin((bess_pv_pk_power_kw + $(vPower_Regime)),$(vHighPower)) as high_power_scen7_kw
+	, RangeMax(0, RangeMin((bess_pv_pk_power_kw + $(vPower_Regime)),$(vBasePower))) as base_power_scen7_kw
+	, RangeSum(bess_pv_pk_power_kw, $(vPower_Regime)) as power_scen7_kw
+	, bess_pv_pk_capacity_kwh as bess_pv_scen7_capacity_kwh
+RESIDENT TempPower
+ORDER BY EAN, datequarterhour asc;
+DROP TABLE TempPower; 
+///$tab Distr Cost
+//Variabelen:
+//1.	Y = Piekvermogen (MW) 
+//2.	X = Verbruik (MWh)
+//3.	A = Toegansvermogen (MW)
+//4.	I = Injectie (MWh)
+//Coëfficiënten: 
+//1.	Verschilt per  regio en aansluiting:
+//1.1) E = Fractie transmissie (Elia) (%)
+//1.2) V = prijs per MW aansluitvermogen  A (€:/MW); dus  C(A) = A*V(€)
+//1.3) P = prijs per  MW piekvermogen Y (€/MW); dus C(Y) = Y*P (€)
+//1.4) O = Tarieven voor de openbaredienstverplichtingen 
+//1.5) T = Toeslagen
+//2.	Verschilt NIET per  regio en aansluiting:
+//2.1) D = dagen in de maand (dagen)
+
+//= Min(150,8082*X; A*V*D/365 + Y*P*D/365 + 0,1550*D) + (O+T+29,14)*X + 1,751*I + D*7,1316
+
+// loop over scenarios
+SET vScenarios = 7;
+
+FOR vS = 1 TO $(vScenarios)
+	
+	LET vConcat = If(NoOfRows('Costs') > 0, 'CONCATENATE (Costs)', 'Costs:');
+	
+	$(vConcat)
+	LOAD 
+		*
+//		, RangeMin(150.8082*X, 1993.6709*Y + 2690.0459) + 29.1803*X + 164.2146 as costs_other_scen$(vS)
+		, RangeMin(150.8082*X, A*V*D/365 + Y*P*D/365 + 0.1550*D) + (O+T+29.14)*X + 1.751*I + D*7.1316 as costs_other_scen$(vS)
+	;
+	LOAD 
+		my_key
+		, Sum(If(power_scen$(vS)_kw > 0, power_scen$(vS)_kw))/4/1000 as X
+		, Max(If(power_scen$(vS)_kw > 0, power_scen$(vS)_kw))/1000 as Y
+		, Max($(vAansluiting)) / 1000 as A
+		, Sum(If(power_scen$(vS)_kw < 0, - power_scen$(vS)_kw))/4/1000 as I
+		// Coëfficienten Zenne-Dijle 2026
+		, 0.5055198 as E
+		, 40.6844988 * 1000 as V
+		, 59.85696 * 1000 as P
+		, 0.0039196 * 1000 as O
+		, 0.0003058 * 1000 as T
+		, Max(Floor(datequarterhour)) - Min(Floor(datequarterhour)) + 1 as D
+	RESIDENT QhData
+	GROUP BY my_key; 
+NEXT
+///$tab Selection
+
+Temp_QhData: 
+LOAD 
+	high_power_seq,
+	high_power_seq as sel_high_power_seq	
+RESIDENT QhData;
+
+CONCATENATE (Temp_QhData)
+LOAD 
+	high_power_seq + 1 as high_power_seq,
+	high_power_seq as sel_high_power_seq	
+RESIDENT QhData;
+
+CONCATENATE (Temp_QhData)
+LOAD 
+	high_power_seq -1 as high_power_seq,
+	high_power_seq as sel_high_power_seq	
+RESIDENT QhData;
+
+FOR vS = 1 TO $(vScenarios)
+	
+	Temp_QhData_Scen$(vS): 
+	LOAD 
+		high_power_scen$(vS)_seq,
+		high_power_scen$(vS)_seq as sel_high_power_scen$(vS)_seq	
+	RESIDENT QhData;
+	
+	CONCATENATE (Temp_QhData_Scen$(vS))
+	LOAD 
+		high_power_scen$(vS)_seq + 1 as high_power_scen$(vS)_seq,
+		high_power_scen$(vS)_seq as sel_high_power_scen$(vS)_seq	
+	RESIDENT QhData;
+	
+	CONCATENATE (Temp_QhData_Scen$(vS))
+	LOAD 
+		high_power_scen$(vS)_seq -1 as high_power_scen$(vS)_seq,
+		high_power_scen$(vS)_seq as sel_high_power_scen$(vS)_seq	
+	RESIDENT QhData;
+	
+NEXT
+///$tab Exit 
+exit script;

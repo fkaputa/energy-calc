@@ -1,0 +1,71 @@
+# Default configuration for energy consumption pipeline
+
+# ---------------------------------------------------------------------------
+# Simulation engine: "pypsa" or "ea_sim"
+# ---------------------------------------------------------------------------
+simulator: "pypsa"
+
+# ---------------------------------------------------------------------------
+# Normalization
+# ---------------------------------------------------------------------------
+resample_rule: "1H"  # 15min or 1H
+
+# ---------------------------------------------------------------------------
+# Time-of-use pricing (peak hours: 7-21, off-peak: 21-7)  [PyPSA only]
+# ---------------------------------------------------------------------------
+peak_start_hour: 7
+peak_end_hour: 21
+peak_price_eur_mwh: 150.0
+off_peak_price_eur_mwh: 80.0
+
+# ---------------------------------------------------------------------------
+# PyPSA battery parameters
+# ---------------------------------------------------------------------------
+battery:
+  round_trip_efficiency: 0.9
+  max_hours: 4.0
+  p_nom_max_mw: 1
+  capital_cost_eur_kwh: 150.0
+  inverter_cost_eur_kw: 170.0
+  lifetime_years: 25.0
+  discount_rate: 0.05
+
+grid_p_nom_mw: 10.0
+
+# ---------------------------------------------------------------------------
+# EA Sim — EnergyLabs rule-based BESS simulation (used when simulator: ea_sim)
+# ---------------------------------------------------------------------------
+ea_sim:
+  battery_capacity_kwh: 1000      # BESS energy capacity (kWh)
+  battery_power_kw: null           # charge/discharge power limit; null = capacity / 2
+  round_trip_efficiency: 0.88
+  connection_capacity_kw: 1700     # grid connection / contracted capacity (kVA)
+  injection_limit_kw: 1300         # max grid injection (kW)
+  high_power_threshold_kw: null    # peak-shaving threshold; null = 70% of connection
+  strategy: "peak_shaving"         # "pv_self_consumption" or "peak_shaving"
+
+  # Belgian distribution-cost coefficients
+  # calculator: "belgian_general" (analyst formula, stationair/non-stationair)
+  #             "static_qv" (original simplified formula)
+  distribution_costs:
+    enabled: true
+    calculator: "belgian_general"
+
+    # BESS mode: true = stationair (Elia 80% korting), false = non-stationair
+    is_stationary: false
+
+    # Elia transmission fraction E (%) — only relevant when is_stationary: true
+    elia_fraction: 0.0
+
+    # Region-dependent coefficients (defaults: Zenne-Dijle 2026)
+    connection_price_eur_per_mw: 40684.4988   # V — prijs per MW toegangsvermogen (€/MW/jaar)
+    peak_price_eur_per_mw: 59856.96           # P — prijs per MW piekvermogen (€/MW/jaar)
+    odv_eur_per_mwh: 3.9196                   # O — openbaredienstverplichtingen (€/MWh, non-stationair)
+    surcharge_eur_per_mwh: 0.3058             # T — toeslagen (€/MWh, non-stationair)
+
+    # Fixed coefficients (same across all regions)
+    offtake_base_eur_per_mwh: 29.14           # taxen 12.09 + certificaten 15.2 + netverliezen 1.85
+    injection_eur_per_mwh: 1.751              # tarief netgebruik injectie
+    fixed_daily_eur: 7.2896                   # databeheer 0.316 + energiefonds 6.316 + admin 0.6576
+    capacity_cap_eur_per_mwh: 150.8082        # max tarief (excl. belastingen & groene stroom)
+    stationary_discount: 0.8                  # Elia korting voor stationair (80%)

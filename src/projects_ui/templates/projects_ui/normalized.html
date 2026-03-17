@@ -1,0 +1,24 @@
+{% extends "projects_ui/base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-top:0; margin-bottom:0.4rem;">
+        Normalized data · <code>{{ project_name }}</code>
+        <span class="tag">consumption_profile.csv</span>
+    </h2>
+    <p class="muted" style="margin-top:0;">
+        Bronbestand: <code>{{ output_dir }}/consumption_profile.csv</code>
+    </p>
+    <div style="margin-top:0.9rem; overflow:auto; max-height: 70vh;">
+        {{ table_html|safe }}
+    </div>
+    <p class="muted" style="margin-top:0.8rem;">
+        Dit is enkel een preview (eerste ~200 rijen) om snel de genormaliseerde tijdreeks te inspecteren.
+    </p>
+    <div style="margin-top:0.8rem;">
+        <a href="{% url 'projects_ui:detail' project_name=project_name %}" class="btn btn-secondary">
+            Terug naar project
+        </a>
+    </div>
+{% endblock %}
+
