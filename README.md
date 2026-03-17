@@ -55,6 +55,14 @@ This keeps iterations small and makes AI-assisted changes safer for production s
 
 ---
 
+## Praktische samenwerkingstutorial (NL)
+
+Voor een stapsgewijze Nederlandstalige handleiding (nieuw project opzetten, configureren, pipeline draaien, output vergelijken met Cursor en nieuwe simulatievarianten veilig opzetten), zie:
+
+- `docs/samenwerken_met_pipeline_tutorial.md`
+
+---
+
 ## Quick start
 
 If you already have Python and Git, this single command will:
