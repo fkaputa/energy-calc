@@ -1,6 +1,8 @@
 """Base adapter interface and registry."""
 
+from importlib.metadata import entry_points
 from pathlib import Path
+import re
 from typing import List, Optional, Protocol
 
 import pandas as pd
@@ -63,7 +65,12 @@ class AdapterRegistry:
 
 # Default registry with built-in adapters
 def get_default_registry() -> AdapterRegistry:
-    """Return registry with all built-in adapters registered."""
+    """Return registry with built-in adapters and optional plugin adapters.
+
+    External adapters can be added via entry points in the
+    ``energy_pipeline.adapters`` group. Each entry point should resolve to a
+    zero-argument adapter class or factory that returns a ConsumptionAdapter.
+    """
     from .adams_meetdata import AdamsMeetdataAdapter
     from .belgian_dso import BelgianDSOAdapter
     from .historiek_dagtotalen import HistoriekDagtotalenAdapter
@@ -76,4 +83,46 @@ def get_default_registry() -> AdapterRegistry:
     registry.register(AdamsMeetdataAdapter())  # Adams meetdata before generic Excel
     registry.register(SmuldersOfftakeAdapter())  # Project folder offtake (Time Series sheet)
     registry.register(BelgianDSOAdapter())
+
+    _register_plugin_adapters(registry)
+
     return registry
+
+
+def _register_plugin_adapters(registry: AdapterRegistry) -> None:
+    """Load external adapters from Python entry points.
+
+    Any plugin loading issue is ignored so the default pipeline remains usable
+    even when optional adapters are misconfigured.
+    """
+    try:
+        plugin_eps = entry_points(group="energy_pipeline.adapters")
+    except TypeError:
+        # Backward compatibility with older importlib.metadata behaviour.
+        plugin_eps = entry_points().get("energy_pipeline.adapters", [])
+    except Exception:
+        return
+
+    for ep in plugin_eps:
+        try:
+            factory = ep.load()
+            adapter = factory()
+            _ensure_plugin_adapter_name(adapter, ep.name)
+            registry.register(adapter)
+        except Exception:
+            continue
+
+
+def _ensure_plugin_adapter_name(adapter: ConsumptionAdapter, entry_point_name: str) -> None:
+    """Ensure plugin adapters have a meaningful, stable name.
+
+    If a plugin adapter does not define ``name`` (or defines an empty/invalid one),
+    derive a readable fallback from the entry-point key.
+    """
+    current_name = getattr(adapter, "name", None)
+    if isinstance(current_name, str) and current_name.strip() and current_name != "unknown":
+        return
+
+    normalized = re.sub(r"[^a-z0-9_]+", "_", entry_point_name.lower()).strip("_")
+    fallback_name = f"plugin_{normalized or 'adapter'}"
+    setattr(adapter, "name", fallback_name)
