@@ -5,6 +5,7 @@ Convert electricity consumption data from energy providers into a normalized for
 ## Features
 
 - **Adapter framework**: Provider-specific adapters parse various input formats
+- **Plugin-ready adapters**: Add new adapters without touching core code via Python entry points (`energy_pipeline.adapters`)
 - **Adams meetdata adapter**: Supports `Adams meetdata *.xlsx` (multiple sheets per year, 2 electricity meters summed, 15-min kW)
 - **Belgian DSO adapter**: Supports `Afname_Elektriciteit_*.xlsx` exports (semicolon-separated, 15-min intervals)
 - **Historiek dagtotalen adapter**: Supports `Historiek_afname_elektriciteit_<EAN>_*_dagtotalen.csv` (daily totals in kWh)
@@ -20,6 +21,39 @@ Convert electricity consumption data from energy providers into a normalized for
 - **Distribution cost calculators**: Selectable Belgian distribution cost formulas. `belgian_general` (analyst formula with stationary/non-stationary BESS mode and Elia discount) and `static_qv` (original simplified formula). Both run automatically during EA Sim; results include absolute (Z) and relative (G(Z) = Z/X) monthly costs.
 - **Distribution cost reports**: Summary and monthly breakdown tables per calculator are included in the PDF report and exported as PNG images.
 - **Web UI with interactive graphs**: Optional Django-based web interface (`projects_ui`) to browse projects, rerun simulations and inspect **linked, zoomable time series** in the browser.
+
+
+## Extending the pipeline (modular / vibe-coding friendly)
+
+The project is designed so owners and developers can work on one module at a time (for example: one importer, one simulator tweak, or one reporting step) without rewriting the whole pipeline.
+
+### Add a new data adapter as a plugin
+
+Core adapters are auto-registered, and extra adapters can be loaded from Python entry points in the `energy_pipeline.adapters` group.
+
+Example in another package's `pyproject.toml`:
+
+```toml
+[project.entry-points."energy_pipeline.adapters"]
+my_provider = "my_package.my_adapter:MyProviderAdapter"
+```
+
+Your adapter should expose a zero-argument class or factory compatible with the `ConsumptionAdapter` protocol in `src/energy_pipeline/adapters/base.py` (`name`, `detect`, `parse`, `to_normalized`).
+
+Use a descriptive `name` (e.g. `fluvius_quarterly_csv`, `edf_interval_metering`) so users immediately know what each adapter does. If omitted, the pipeline auto-generates a fallback like `plugin_<entry_point_name>`.
+
+Once installed in the same environment (`pip install -e <plugin_repo>`), `run_pipeline` can detect and use it automatically.
+
+### Recommended workflow for Cursor/Codex/Claude Code
+
+1. Checkout the repo and run the baseline tests.
+2. Work only in one module boundary (adapter/simulation/visualization).
+3. Add or update targeted tests in `tests/`.
+4. Run `pytest` before committing.
+
+This keeps iterations small and makes AI-assisted changes safer for production simulation flows.
+
+---
 
 ## Quick start
 

@@ -58,3 +58,84 @@ def test_registry_get_by_name() -> None:
     adapter = registry.get("belgian_dso")
     assert adapter is not None
     assert isinstance(adapter, BelgianDSOAdapter)
+
+
+class _AcmeQuarterHourlyAdapter:
+    name = "acme_quarter_hourly"
+
+    def detect(self, path):
+        return False
+
+    def parse(self, path):
+        raise NotImplementedError
+
+    def to_normalized(self, raw):
+        raise NotImplementedError
+
+
+class _StubEntryPoint:
+    def __init__(self, factory, name: str = "acme_quarter_hourly"):
+        self._factory = factory
+        self.name = name
+
+    def load(self):
+        return self._factory
+
+
+def test_registry_loads_named_plugin_adapters(monkeypatch) -> None:
+    from energy_pipeline.adapters import base
+
+    monkeypatch.setattr(
+        base,
+        "entry_points",
+        lambda group=None: [_StubEntryPoint(lambda: _AcmeQuarterHourlyAdapter())]
+        if group == "energy_pipeline.adapters"
+        else [],
+    )
+
+    registry = get_default_registry()
+    assert "acme_quarter_hourly" in registry.list_names()
+
+
+def test_registry_ignores_broken_plugin_adapter(monkeypatch) -> None:
+    from energy_pipeline.adapters import base
+
+    def _broken_factory():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        base,
+        "entry_points",
+        lambda group=None: [_StubEntryPoint(_broken_factory)]
+        if group == "energy_pipeline.adapters"
+        else [],
+    )
+
+    registry = get_default_registry()
+    assert "acme_quarter_hourly" not in registry.list_names()
+
+
+class _NamelessAdapter:
+    def detect(self, path):
+        return False
+
+    def parse(self, path):
+        raise NotImplementedError
+
+    def to_normalized(self, raw):
+        raise NotImplementedError
+
+
+def test_registry_sets_fallback_name_for_nameless_plugin(monkeypatch) -> None:
+    from energy_pipeline.adapters import base
+
+    monkeypatch.setattr(
+        base,
+        "entry_points",
+        lambda group=None: [_StubEntryPoint(lambda: _NamelessAdapter(), "GridFlex Adapter v2")]
+        if group == "energy_pipeline.adapters"
+        else [],
+    )
+
+    registry = get_default_registry()
+    assert "plugin_gridflex_adapter_v2" in registry.list_names()
